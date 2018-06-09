@@ -14,14 +14,20 @@ struct BadExpression : public std::runtime_error
     BadExpression(std::string const& bad_expression);
 };
 
-struct sNode
+struct UnknownVariable : public std::runtime_error
 {
-    char operation_type = 0; //0, '+', '-', '/', '*', 'i', 'f'
-    std::string operation;
-    std::vector<sNode> subnodes;
+    UnknownVariable(std::string const& unknown_var);
 };
 
 using NumberT = long double;
+
+struct sNode
+{
+    char operation_type = 0; //0, '+', '-', '/', '*', 'i', 'f', 'x'
+    std::string operation;
+    NumberT value;
+    std::vector<sNode> subnodes;
+};
 
 inline NumberT StringToNumber(std::string const& str)
 {

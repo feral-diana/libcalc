@@ -49,7 +49,19 @@ sNode EmptyPostProcess(std::string expr)
     }
 
     sNode node;
-    node.operation_type = 'i';
+
+    try
+    {
+         node.value = StringToNumber(expr);
+         node.operation_type = 'i';
+         return node;
+    }
+    catch(std::exception const&)
+    {
+        // it is a variable
+    }
+
+    node.operation_type = 'x';
     node.operation = expr;
     return node;
 }
@@ -123,6 +135,11 @@ BadExpression::BadExpression(std::string const& bad_expression)
     : std::runtime_error("Bad expression: " + bad_expression)
 {};
 
+UnknownVariable::UnknownVariable(std::string const& unknown_var)
+    : std::runtime_error("Unknown variable: " + unknown_var)
+{
+};
+
 FunctionsT DefaultFunctions()
 {
     return functions;
@@ -155,14 +172,16 @@ NumberT Calculate(sNode const& root, VariablesT const& variables, FunctionsT con
             auto func = functions.find(root.operation);
             return func->second(Calculate(root.subnodes[0], variables, functions));
         }
-        case 'i':
+        case 'x':
         {
             auto found = variables.find(root.operation);
             if (found == variables.end())
-                return StringToNumber(root.operation);
+                throw UnknownVariable(root.operation);
             return found->second;
         }
-        default:
+        case 'i':
+            return root.value;
+        defalt: //never
             throw std::exception();
     }
 }
