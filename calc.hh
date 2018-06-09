@@ -1,3 +1,6 @@
+//          Copyright Diana Feral 2018
+// Distributed under the MIT License, see accompanying file LICENSE
+
 #include <map>
 #include <vector>
 #include <string>
@@ -17,12 +20,19 @@ struct sNode
     std::vector<sNode> subnodes;
 };
 
-typedef std::map<std::string, long double> VariablesT;
-typedef std::map<std::string, std::function<long double(long double)>> FunctionsT;
+using NumberT = long double;
+
+inline NumberT StringToNumber(std::string const& str)
+{
+    return std::stold(str);
+}
+
+typedef std::map<std::string, NumberT> VariablesT;
+typedef std::map<std::string, std::function<NumberT(NumberT)>> FunctionsT;
 
 sNode Build(std::string const& expr);
 FunctionsT DefaultFunctions();
-long double Calculate(sNode const& root, VariablesT const& variables = VariablesT(), FunctionsT const& functions = DefaultFunctions());
+NumberT Calculate(sNode const& root, VariablesT const& variables = VariablesT(), FunctionsT const& functions = DefaultFunctions());
 
 }
 

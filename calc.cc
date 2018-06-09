@@ -1,7 +1,11 @@
+//          Copyright Diana Feral 2018
+// Distributed under the MIT License, see accompanying file LICENSE
+
 #include "calc.hh"
 
 #include <set>
 #include <cmath>
+#include <algorithm>
 
 namespace Calc {
 namespace {
@@ -15,7 +19,7 @@ sNode MainProcess(std::string operation);
 
 FunctionsT functions =
 {
-    {"sqr", [](long double x) { return x*x;} },
+    {"sqr", [](NumberT x) { return x*x;} },
     {"sin", sin},
     {"cos", cos},
     {"exp", exp},
@@ -124,10 +128,15 @@ FunctionsT DefaultFunctions()
 
 sNode Build(std::string const& expr)
 {
-    return MainProcess(expr);
+    std::string clear_expr(expr);
+
+    std::string::iterator end_pos = std::remove(clear_expr.begin(), clear_expr.end(), ' ');
+    clear_expr.erase(end_pos, clear_expr.end());
+
+    return MainProcess(clear_expr);
 }
 
-long double Calculate(sNode const& root, VariablesT const& variables, FunctionsT const& functions)
+NumberT Calculate(sNode const& root, VariablesT const& variables, FunctionsT const& functions)
 {
     if (root.operation == "+")
         return Calculate(root.subnodes[0], variables) + Calculate(root.subnodes[1], variables);
@@ -139,14 +148,14 @@ long double Calculate(sNode const& root, VariablesT const& variables, FunctionsT
         return Calculate(root.subnodes[0], variables) / Calculate(root.subnodes[1], variables);
     else if (functions.count(root.operation))
     {
-	auto func = functions.find(root.operation);
+        auto func = functions.find(root.operation);
         return func->second(Calculate(root.subnodes[0], variables));
     }
     else
     {
         auto found = variables.find(root.operation);
         if (found == variables.end())
-            return std::stold(root.operation);
+            return StringToNumber(root.operation);
         return found->second;
     }
 }

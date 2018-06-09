@@ -1,3 +1,6 @@
+//          Copyright Diana Feral 2018
+// Distributed under the MIT License, see accompanying file LICENSE
+
 #include "../calc.hh"
 
 #include <iostream>
@@ -7,12 +10,12 @@ using namespace Calc;
 
 int check_expr(std::string const& expr,
                VariablesT variables,
-	       long double expected_result,
-               long double expected_result_window = 0.000000000000001)
+               NumberT expected_result,
+               NumberT expected_result_window = 0.000000000000001)
 {
     sNode root = Build(expr);
-    long double result = Calculate(root, variables);
-    long double diff = result - expected_result;
+    NumberT result = Calculate(root, variables);
+    NumberT diff = result - expected_result;
     if (diff > expected_result_window || diff < -expected_result_window)
     {
         std::cout << "Expression test failed(" << expr <<"): " << result << " != " << expected_result << std::endl;
@@ -23,11 +26,11 @@ int check_expr(std::string const& expr,
 
 int main()
 {
-    typedef std::numeric_limits<long double> dbl;
+    using dbl = std::numeric_limits<NumberT>;
     std::cout.precision(dbl::max_digits10);
- 
+
     VariablesT variables= {{"x", 5}, {"y", 3}};
- 
+
     int result = 0;
     result += check_expr("sin(x)*sin(x)+cos(x)*cos(x)", variables, 1.0);
     result += check_expr("exp(1)", variables, 2.7182818284590452);

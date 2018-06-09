@@ -2,6 +2,9 @@ CXXFLAGS= -std=c++11
 
 all: calc.o tests_run
 
+calc.o: calc.hh calc.cc
+	g++ $(CXXFLAGS) -c -o calc.o calc.cc
+
 tests_run:
 	$(MAKE) -C tests
 
