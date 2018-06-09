@@ -16,6 +16,7 @@ struct BadExpression : public std::runtime_error
 
 struct sNode
 {
+    char operation_type = 0; //0, '+', '-', '/', '*', 'i', 'f'
     std::string operation;
     std::vector<sNode> subnodes;
 };

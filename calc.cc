@@ -14,7 +14,7 @@ std::set<char> plus_minus = {'+', '-'};
 std::set<char> mul_div = {'*', '/'};
 
 sNode EmptyPostProcess(std::string expr);
-sNode BuildTree(std::string expr, std::set<char> operations, std::function<sNode(std::string)> post_process = EmptyPostProcess);
+sNode BuildTree(std::string expr, std::set<char> const& operations, std::function<sNode(std::string)> post_process = EmptyPostProcess);
 sNode MainProcess(std::string operation);
 
 FunctionsT functions =
@@ -39,6 +39,7 @@ sNode EmptyPostProcess(std::string expr)
             if (expr.find(function.first + "(") == 0)
             {
                 sNode node;
+                node.operation_type = 'f';
                 node.operation = function.first;
                 sNode subnode = MainProcess(std::string(expr, function.first.size() + 1, expr.size() - function.first.size() - 2));
                 node.subnodes.push_back(subnode);
@@ -48,6 +49,7 @@ sNode EmptyPostProcess(std::string expr)
     }
 
     sNode node;
+    node.operation_type = 'i';
     node.operation = expr;
     return node;
 }
@@ -60,7 +62,7 @@ sNode MainProcess(std::string operation)
                     });
 }
 
-sNode BuildTree(std::string expr, std::set<char> operations, std::function<sNode(std::string)> post_process)
+sNode BuildTree(std::string expr, std::set<char> const& operations, std::function<sNode(std::string)> post_process)
 {
     if (expr[0] == '+' || expr[0] == '-')
         expr = "0" + expr;
@@ -80,18 +82,18 @@ sNode BuildTree(std::string expr, std::set<char> operations, std::function<sNode
             root.subnodes.push_back(subnode);
             start = i + 1;
 
-            if (!root.operation.empty())
+            if (root.operation_type)
             {
                 sNode old_root(root);
                 root.subnodes.clear();
                 root.subnodes.push_back(old_root);
             }
 
-            root.operation = expr[i];
+            root.operation_type = expr[i];
         }
     }
 
-    if (root.operation.empty())
+    if (!root.operation_type)
     {
         if (expr.empty())
             throw BadExpression(expr);
@@ -138,25 +140,30 @@ sNode Build(std::string const& expr)
 
 NumberT Calculate(sNode const& root, VariablesT const& variables, FunctionsT const& functions)
 {
-    if (root.operation == "+")
-        return Calculate(root.subnodes[0], variables) + Calculate(root.subnodes[1], variables);
-    else if (root.operation == "-")
-        return Calculate(root.subnodes[0], variables) - Calculate(root.subnodes[1], variables);
-    else if (root.operation == "*")
-        return Calculate(root.subnodes[0], variables) * Calculate(root.subnodes[1], variables);
-    else if (root.operation == "/")
-        return Calculate(root.subnodes[0], variables) / Calculate(root.subnodes[1], variables);
-    else if (functions.count(root.operation))
+    switch (root.operation_type)
     {
-        auto func = functions.find(root.operation);
-        return func->second(Calculate(root.subnodes[0], variables));
-    }
-    else
-    {
-        auto found = variables.find(root.operation);
-        if (found == variables.end())
-            return StringToNumber(root.operation);
-        return found->second;
+        case '+':
+            return Calculate(root.subnodes[0], variables, functions) + Calculate(root.subnodes[1], variables, functions);
+        case '-':
+            return Calculate(root.subnodes[0], variables, functions) - Calculate(root.subnodes[1], variables, functions);
+        case '*':
+            return Calculate(root.subnodes[0], variables, functions) * Calculate(root.subnodes[1], variables, functions);
+        case '/':
+           return Calculate(root.subnodes[0], variables, functions) / Calculate(root.subnodes[1], variables, functions);
+        case 'f':
+        {
+            auto func = functions.find(root.operation);
+            return func->second(Calculate(root.subnodes[0], variables, functions));
+        }
+        case 'i':
+        {
+            auto found = variables.find(root.operation);
+            if (found == variables.end())
+                return StringToNumber(root.operation);
+            return found->second;
+        }
+        default:
+            throw std::exception();
     }
 }
 
