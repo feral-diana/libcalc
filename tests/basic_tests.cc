@@ -30,7 +30,7 @@ int main()
     using dbl = std::numeric_limits<NumberT>;
     std::cout.precision(dbl::max_digits10);
 
-    VariablesT variables= {{"x", 5}, {"y", 3}};
+    VariablesT variables= {{"x", 5}, {"y", 3}, {"zz", 78}};
     VariablesT constants= {{"a", 3}, {"b", 7}};
 
     int result = 0;
@@ -47,6 +47,7 @@ int main()
     result += check_expr("5+5*6", VariablesT(), constants, 35);
     result += check_expr("3+5*4+7", VariablesT(), constants, 30);
     result += check_expr("3-6/5", VariablesT(), constants, 1.8);
+    result += check_expr("2+zz", variables, constants, 80);
 
     return result;
 }

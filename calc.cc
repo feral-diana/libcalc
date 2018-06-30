@@ -69,7 +69,7 @@ sNode ValueProcess(std::string const& expr, VariablesT const& constants)
     }
 
     node.operation_type = 'x';
-    node.operation = expr[0];
+    node.operation = expr;
     return node;
 }
 
