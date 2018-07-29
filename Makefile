@@ -1,9 +1,9 @@
-CXXFLAGS= -std=c++14
+CXXFLAGS= -std=c++17 -Wall -Werror
 
 all: calc.o tests_run
 
 calc.o: calc.hh calc.cc
-	g++ $(CXXFLAGS) -c -o calc.o calc.cc
+	g++-7 $(CXXFLAGS) -c -o calc.o calc.cc -O3
 
 tests_run:
 	$(MAKE) -C tests

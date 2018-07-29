@@ -2,10 +2,13 @@
 // Distributed under the MIT License, see accompanying file LICENSE
 
 #include <map>
+#include <set>
 #include <vector>
 #include <string>
 #include <stdexcept>
 #include <functional>
+#include <memory>
+#include <optional>
 
 namespace Calc {
 
@@ -27,8 +30,8 @@ struct UnknownFunction : public std::runtime_error
 using NumberT = long double;
 using FunctionT = std::function<NumberT(NumberT)>;
 
-typedef std::map<std::string, NumberT> VariablesT;
-typedef std::map<std::string, FunctionT> FunctionsT;
+typedef std::map<std::string, NumberT, std::less<>> VariablesT;
+typedef std::map<std::string, FunctionT, std::less<>> FunctionsT;
 
 struct sNode
 {
@@ -36,19 +39,31 @@ struct sNode
     std::string operation;
     FunctionT func = 0;    
     NumberT value = 0;
+    std::shared_ptr<std::optional<NumberT>> variable;
     std::vector<sNode> subnodes;
     bool constant = false;
     bool inversion = false; // true + operation_type('+') = '-'; true + operation_type('*') = '/'
 };
 
-inline NumberT StringToNumber(std::string const& str)
+template<typename T>
+inline T StringToNumber(std::string const& str);
+
+template<>
+inline long double StringToNumber<long double>(std::string const& str)
 {
     return std::stold(str);
 }
 
-FunctionsT DefaultFunctions();
+template<>
+inline int StringToNumber<int>(std::string const& str)
+{
+    return std::stoi(str);
+}
 
-sNode Build(std::string const& expr, FunctionsT const& functions = DefaultFunctions(), VariablesT const& constants = VariablesT());
+FunctionsT const& DefaultFunctions();
+
+void ClearExpression(std::string& expr, std::set<char> const& chars_to_remove = {' '});
+sNode Build(std::string_view expr, FunctionsT const& functions = DefaultFunctions(), VariablesT const& constants = VariablesT());
 void Optimize(sNode& root);
 NumberT Calculate(sNode const& root, VariablesT const& variables = VariablesT());
 

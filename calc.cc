@@ -6,77 +6,104 @@
 #include <set>
 #include <cmath>
 #include <algorithm>
+#include <string_view>
+#include <iostream>
 
 namespace Calc {
 namespace {
 
 std::set<char> all_operations = {'+', '-', '*', '/'};
 
-sNode BuildTree(std::string const& expr, FunctionsT const& functions, VariablesT const& constants);
+using MyVariablesT = std::map<std::string, std::shared_ptr<std::optional<NumberT>>, std::less<>>;
+
+sNode BuildTree(std::string_view expr, FunctionsT const& functions, MyVariablesT& my_variables, VariablesT const& constants);
 
 FunctionsT default_functions =
 {
-    {"sqr", [](NumberT x) { return x*x;} },
-    {"sin", sin},
-    {"cos", cos},
-    {"exp", exp},
-    {"log", log},
+    {"sqr",  [](NumberT x) { return x*x;} },
+    {"sin",  sin},
+    {"cos",  cos},
+    {"exp",  exp},
+    {"log",  log},
     {"sqrt", sqrt},
 };
 
-sNode FunctionProcess(std::string const& expr, FunctionsT const& functions, VariablesT const& constants)
+sNode FunctionProcess(std::string_view expr, FunctionsT const& functions, MyVariablesT& my_variables, VariablesT const& constants)
 {
     auto found = expr.find('(');
-    if (found == std::string::npos)
-        throw BadExpression(expr);
+    if (found == std::string_view::npos)
+        throw BadExpression(std::string(expr.begin(), expr.end()));
 
-    std::string func(expr.begin(), expr.begin() + found);
+    std::string_view func = expr.substr(0, found);
     auto found_func = functions.find(func);
     if (found_func == functions.end())
-        throw UnknownFunction(func);
+        throw UnknownFunction(std::string(func));
 
-    sNode subnode = BuildTree(expr.substr(found + 1, expr.size() - found - 2), functions, constants);
+    sNode subnode = BuildTree(expr.substr(found + 1, expr.size() - found - 2), functions, my_variables, constants);
     sNode node;
     node.constant = subnode.constant;
     node.operation_type = 'f';
     node.func = found_func->second;
-    node.subnodes.push_back(subnode);
+    node.subnodes.push_back(std::move(subnode));
     return node;
 }
 
-sNode ValueProcess(std::string const& expr, VariablesT const& constants)
+bool IsNumber(std::string_view expr)
+{
+    for (auto const& c : expr)
+        if (c != '.' && c != ',' && (c < '0' || c > '9'))
+            return false;
+    return true;
+}
+
+sNode ValueProcess(std::string_view expr, MyVariablesT& my_variables, VariablesT const& constants)
 {
     sNode node;
 
     try
     {
-        node.value = StringToNumber(expr);
-        node.operation_type = 'i';
-        node.constant = true;
-        return node;
+        if (IsNumber(expr))
+        {
+            node.value = StringToNumber<NumberT>(std::string(expr.begin(), expr.end()));
+            node.operation_type = 'i';
+            return node;
+        }
     }
     catch(std::exception const&)
     {
         // it is a variable or constant
-        auto found_const = constants.find(expr);
-        if (found_const != constants.end())
-        {
-            node.value = found_const->second;
-            node.operation_type = 'i';
-            node.constant = true;
-            return node;
-        }
+    }
+
+    auto found_const = constants.find(expr);
+    if (found_const != constants.end())
+    {
+        node.value = found_const->second;
+        node.operation_type = 'i';
+        return node;
     }
 
     node.operation_type = 'x';
     node.operation = expr;
+    
+    auto lb = my_variables.lower_bound(expr);
+
+    if(lb != my_variables.end() && expr == lb->first)
+    {
+        node.variable = lb->second;
+    }
+    else
+    {
+        auto new_value = my_variables.insert(lb, std::make_pair(std::string(expr), new std::optional<NumberT>()));
+        node.variable = new_value->second;
+    }
+ 
     return node;
 }
 
-sNode BuildTree(std::string const& expr, FunctionsT const& functions, VariablesT const& constants)
+sNode BuildTree(std::string_view expr, FunctionsT const& functions, MyVariablesT& my_variables, VariablesT const& constants)
 {
     if (expr.empty())
-        throw BadExpression(expr);
+        throw BadExpression(std::string(expr.begin(), expr.end()));
 
     sNode zero;
     zero.operation_type = 'i';
@@ -96,31 +123,31 @@ sNode BuildTree(std::string const& expr, FunctionsT const& functions, VariablesT
         else if (all_operations.count(expr[i]) and !count)
         {
             bool is_plus_minus = expr[i] == '+' or expr[i] == '-';
-            sNode subnode = !i and is_plus_minus ? zero : BuildTree(expr.substr(start, i - start), functions, constants);
+            sNode subnode = !i and is_plus_minus ? zero : BuildTree(std::string_view(expr).substr(start, i - start), functions, my_variables, constants);
             subnode.inversion = operation_type == '-' or operation_type == '/';
             if (operation_type == '+' or operation_type == '-')
             {
                 if (is_plus_minus)
-                    root.subnodes.push_back(subnode);
+                    root.subnodes.push_back(std::move(subnode));
                 else
                 {
                     sNode mul_node;
                     mul_node.operation_type = '*';
                     if (!subnode.inversion)
-                        mul_node.subnodes.push_back(subnode);
+                        mul_node.subnodes.push_back(std::move(subnode));
                     else
                     {
                         sNode add_node;
                         add_node.operation_type = '+';
                         add_node.subnodes.push_back(zero);
-                        add_node.subnodes.push_back(subnode);
-                        mul_node.subnodes.push_back(add_node);
+                        add_node.subnodes.push_back(std::move(subnode));
+                        mul_node.subnodes.push_back(std::move(add_node));
                     }
-                    root.subnodes.push_back(mul_node);
+                    root.subnodes.push_back(std::move(mul_node));
                 }
             }
             else
-                root.subnodes.back().subnodes.push_back(subnode);
+                root.subnodes.back().subnodes.push_back(std::move(subnode));
 
             start = i + 1;
 
@@ -136,22 +163,22 @@ sNode BuildTree(std::string const& expr, FunctionsT const& functions, VariablesT
         if (expr.back() == ')')
         {
             if (expr.front() == '(')
-                root = BuildTree(expr.substr(1, expr.size() - 2), functions, constants);
+                root = BuildTree(std::string_view(expr).substr(1, expr.size() - 2), functions, my_variables, constants);
             else
-                root = FunctionProcess(expr, functions, constants);
+                root = FunctionProcess(expr, functions, my_variables, constants);
         }
         else
-            root = ValueProcess(expr, constants);
+            root = ValueProcess(expr, my_variables, constants);
     }
     else
     {
-        sNode subnode(BuildTree(expr.substr(start), functions, constants));
+        sNode subnode(BuildTree(std::string_view(expr).substr(start), functions, my_variables, constants));
         subnode.inversion = operation_type == '-' or operation_type == '/';
 
         if (operation_type == '+' or operation_type == '-')
-            root.subnodes.push_back(subnode);
+            root.subnodes.push_back(std::move(subnode));
         else
-            root.subnodes.back().subnodes.push_back(subnode);
+            root.subnodes.back().subnodes.push_back(std::move(subnode));
 
     }
 
@@ -174,19 +201,21 @@ UnknownFunction::UnknownFunction(std::string const& unknown_func)
 {
 };
 
-FunctionsT DefaultFunctions()
+FunctionsT const& DefaultFunctions()
 {
     return default_functions;
 }
 
-sNode Build(std::string const& expr, FunctionsT const& functions, VariablesT const& constants)
+void ClearExpression(std::string& expr, std::set<char> const& chars_to_remove)
 {
-    std::string clear_expr(expr);
+    auto end_pos = std::remove_if(expr.begin(), expr.end(), [&chars_to_remove](char c) { return chars_to_remove.count(c);});
+    expr.resize(end_pos - expr.begin());
+}
 
-    std::string::iterator end_pos = std::remove(clear_expr.begin(), clear_expr.end(), ' ');
-    clear_expr.erase(end_pos, clear_expr.end());
-
-    return BuildTree(clear_expr, functions, constants);
+sNode Build(std::string_view expr, FunctionsT const& functions, VariablesT const& constants)
+{
+    MyVariablesT my_variables;
+    return BuildTree(expr, functions, my_variables, constants);
 }
 
 NumberT Calculate(sNode const& root, VariablesT const& variables)
@@ -223,14 +252,22 @@ NumberT Calculate(sNode const& root, VariablesT const& variables)
             return root.func(Calculate(root.subnodes[0], variables));
         case 'x':
         {
+            if (*root.variable)
+                return **root.variable;
+
             auto found = variables.find(root.operation);
             if (found != variables.end())
-            	return found->second;
+            {
+                //return found->second;
+                *root.variable = found->second;
+                return **root.variable;
+            }
+
             throw UnknownVariable(root.operation);
         }
         case 'i':
             return root.value;
-        defalt: //never
+        default: //never
             throw std::exception();
     }
 }
@@ -266,7 +303,7 @@ void Optimize(sNode& root)
             const_part.subnodes.clear();
             const_part.constant = true;
             root.subnodes.erase(bound, root.subnodes.end());
-            root.subnodes.push_back(const_part);
+            root.subnodes.push_back(std::move(const_part));
         }
     }
 }
