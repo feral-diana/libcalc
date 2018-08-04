@@ -48,31 +48,18 @@ sNode FunctionProcess(std::string_view expr, FunctionsT const& functions, MyVari
     return node;
 }
 
-bool IsNumber(std::string_view expr)
-{
-    for (auto const& c : expr)
-        if (c != '.' && c != ',' && (c < '0' || c > '9'))
-            return false;
-    return true;
-}
-
 sNode ValueProcess(std::string_view expr, MyVariablesT& my_variables, VariablesT const& constants)
 {
     sNode node;
 
-    try
+    auto value = StringToNumber<NumberT>(std::string(expr.begin(), expr.end()));
+    if (value)
     {
-        if (IsNumber(expr))
-        {
-            node.value = StringToNumber<NumberT>(std::string(expr.begin(), expr.end()));
-            node.operation_type = 'i';
-            return node;
-        }
+        node.value = *value;
+        node.operation_type = 'i';
+        return node;
     }
-    catch(std::exception const&)
-    {
-        // it is a variable or constant
-    }
+    // it is a variable or constant
 
     auto found_const = constants.find(expr);
     if (found_const != constants.end())
