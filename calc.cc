@@ -290,7 +290,9 @@ void cCalculator::ClearVariables()
 
 void cCalculator::SetVariable(std::string const& name, NumberT value)
 {
-    *_my_variables[name] = value;
+    auto found = _my_variables.find(name);
+    if (found != _my_variables.end())
+        *found->second = value;
 }
 
 void cCalculator::SetVariables(VariablesT const& variables)

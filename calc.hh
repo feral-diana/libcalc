@@ -27,11 +27,6 @@ struct UnknownFunction : public std::runtime_error
    UnknownFunction(std::string const& unknown_func);
 };
 
-using NumberT = long double;
-using VariablesT = std::map<std::string, NumberT, std::less<>>;
-using FunctionT = std::function<NumberT(NumberT)>;
-using FunctionsT = std::map<std::string, FunctionT, std::less<>>;
-
 template<typename T>
 inline std::optional<T> StringToNumber(std::string_view str);
 
@@ -89,6 +84,11 @@ inline std::optional<int> StringToNumber<int>(std::string_view str)
     }
     return r;
 }
+
+using NumberT = long double;
+using VariablesT = std::map<std::string, NumberT, std::less<>>;
+using FunctionT = std::function<NumberT(NumberT)>;
+using FunctionsT = std::map<std::string, FunctionT, std::less<>>;
 
 class cCalculator
 {
