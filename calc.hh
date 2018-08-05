@@ -7,7 +7,6 @@
 #include <string>
 #include <stdexcept>
 #include <functional>
-#include <memory>
 #include <optional>
 
 namespace Calc {
@@ -105,15 +104,15 @@ public:
 
 private:
 
-    using _MyVariablesT = std::map<std::string, std::shared_ptr<std::optional<NumberT>>, std::less<>>;
-    _MyVariablesT _my_variables;
+    std::map<std::string, int, std::less<>> _my_variables_indexes;
+    std::vector<std::optional<NumberT>> _my_variables_values;
 
     struct _sNode
     {
         char operation_type = 0; //0, '+', '*', 'i', 'f', 'x'
         FunctionT func = 0;    
         NumberT value = 0;
-        std::shared_ptr<std::optional<NumberT>> variable;
+        int variable_index = -1;
         std::vector<_sNode> subnodes;
         bool constant = false;
         bool inversion = false; // true + operation_type('+') = '-'; true + operation_type('*') = '/'

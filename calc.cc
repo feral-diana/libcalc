@@ -3,11 +3,9 @@
 
 #include "calc.hh"
 
-#include <set>
 #include <cmath>
 #include <algorithm>
 #include <string_view>
-#include <iostream>
 
 namespace Calc {
 namespace {
@@ -65,16 +63,17 @@ cCalculator::_sNode cCalculator::_ValueProcess(std::string_view expr, VariablesT
 
     node.operation_type = 'x';
     
-    auto lb = _my_variables.lower_bound(expr);
+    auto lb = _my_variables_indexes.lower_bound(expr);
 
-    if(lb != _my_variables.end() && expr == lb->first)
+    if(lb != _my_variables_indexes.end() && expr == lb->first)
     {
-        node.variable = lb->second;
+        node.variable_index = lb->second;
     }
     else
     {
-        auto new_value = _my_variables.insert(lb, std::make_pair(std::string(expr), new std::optional<NumberT>()));
-        node.variable = new_value->second;
+        _my_variables_values.emplace_back();
+        auto new_value = _my_variables_indexes.insert(lb, std::make_pair(std::string(expr), _my_variables_values.size()-1));
+        node.variable_index = new_value->second;
     }
  
     return node;
@@ -222,7 +221,7 @@ NumberT cCalculator::_Calculate(_sNode const& root) const
         case 'f':
             return root.func(_Calculate(root.subnodes[0]));
         case 'x':
-            return **root.variable;
+            return *(_my_variables_values[root.variable_index]);
         case 'i':
             return root.value;
         default: //never
@@ -272,8 +271,8 @@ void cCalculator::Optimize()
 
 NumberT cCalculator::GetResult() const
 {
-    for (auto& [name, value] : _my_variables)
-       if (!value->has_value())
+    for (auto const& [name, index] : _my_variables_indexes)
+       if (!_my_variables_values[index])
            throw UnknownVariable(name);
 
     return _Calculate(_root);
@@ -281,28 +280,28 @@ NumberT cCalculator::GetResult() const
 
 void cCalculator::ClearVariables()
 {
-    for (auto& [name, value] : _my_variables)
+    for (auto const& [name, index] : _my_variables_indexes)
     {
         (void)name;
-        value->reset();
+        _my_variables_values[index].reset();
     }
 }
 
 void cCalculator::SetVariable(std::string const& name, NumberT value)
 {
-    auto found = _my_variables.find(name);
-    if (found != _my_variables.end())
-        *found->second = value;
+    auto found = _my_variables_indexes.find(name);
+    if (found != _my_variables_indexes.end())
+        _my_variables_values[found->second] = value;
 }
 
 void cCalculator::SetVariables(VariablesT const& variables)
 {
-    for (auto& [name, value] : _my_variables)
+    for (auto const& [name, index] : _my_variables_indexes)
     {
         auto found = variables.find(name);
         if (found == variables.end())
             throw UnknownVariable(name);
-        *value = found->second;
+        _my_variables_values[index] = found->second;
     }
 }
 
