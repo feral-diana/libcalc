@@ -32,18 +32,6 @@ using VariablesT = std::map<std::string, NumberT, std::less<>>;
 using FunctionT = std::function<NumberT(NumberT)>;
 using FunctionsT = std::map<std::string, FunctionT, std::less<>>;
 
-struct sNode
-{
-    char operation_type = 0; //0, '+', '*', 'i', 'f', 'x'
-    std::string operation;
-    FunctionT func = 0;    
-    NumberT value = 0;
-    std::shared_ptr<std::optional<NumberT>> variable;
-    std::vector<sNode> subnodes;
-    bool constant = false;
-    bool inversion = false; // true + operation_type('+') = '-'; true + operation_type('*') = '/'
-};
-
 template<typename T>
 inline std::optional<T> StringToNumber(std::string_view str);
 
@@ -102,14 +90,51 @@ inline std::optional<int> StringToNumber<int>(std::string_view str)
     return r;
 }
 
-FunctionsT const& DefaultFunctions();
-void ClearExpression(std::string& expr, std::set<char> const& chars_to_remove = {' '});
-sNode Build(std::string_view expr, FunctionsT const& functions = DefaultFunctions(), VariablesT const& constants = VariablesT());
-void Optimize(sNode& root);
-NumberT Calculate(sNode const& root, VariablesT const& variables = VariablesT());
+class cCalculator
+{
+public:
+    static FunctionsT const& DefaultFunctions();
+    static void ClearExpression(std::string& expr, std::set<char> const& chars_to_remove = {' '});
+
+    cCalculator(std::string_view expr, FunctionsT const& functions = DefaultFunctions(), VariablesT const& constants = VariablesT());
+    void Optimize();
+    void ClearVariables();
+    void SetVariable(std::string const& name, NumberT value);
+    void SetVariables(VariablesT const& variables);
+    NumberT GetResult() const;
+
+private:
+
+    using _MyVariablesT = std::map<std::string, std::shared_ptr<std::optional<NumberT>>, std::less<>>;
+    _MyVariablesT _my_variables;
+
+    struct _sNode
+    {
+        char operation_type = 0; //0, '+', '*', 'i', 'f', 'x'
+        FunctionT func = 0;    
+        NumberT value = 0;
+        std::shared_ptr<std::optional<NumberT>> variable;
+        std::vector<_sNode> subnodes;
+        bool constant = false;
+        bool inversion = false; // true + operation_type('+') = '-'; true + operation_type('*') = '/'
+
+        _sNode(char op_type = 0)
+            : operation_type(op_type)
+        {
+        }
+    };
+
+    static const inline _sNode ZERO = {'i'};
+
+    _sNode _root;
+
+    _sNode _BuildTree(std::string_view expr, FunctionsT const& functions, VariablesT const& constants);
+    _sNode _FunctionProcess(std::string_view expr, FunctionsT const& functions, VariablesT const& constants);
+    _sNode _ValueProcess(std::string_view expr, VariablesT const& constants);
+    void _Optimize(_sNode& node);
+    NumberT _Calculate(_sNode const& node) const;
+};
 
 }
 
 // vim: set et ts=4 sw=4:
-//
-

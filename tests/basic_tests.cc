@@ -14,8 +14,9 @@ int check_expr(std::string const& expr,
                NumberT expected_result,
                NumberT expected_result_window = 0.000000000000001)
 {
-    sNode root = Build(expr, DefaultFunctions(), constants);
-    NumberT result = Calculate(root, variables);
+    cCalculator calc(expr, cCalculator::DefaultFunctions(), constants);
+    calc.SetVariables(variables);
+    NumberT result = calc.GetResult();
     NumberT diff = result - expected_result;
     if (diff > expected_result_window || diff < -expected_result_window)
     {
