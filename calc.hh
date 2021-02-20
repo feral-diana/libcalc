@@ -123,12 +123,6 @@ inline std::optional<std::complex<long double>> StringToNumber<std::complex<long
     }
 }
 
-namespace {
-
-std::set<char> all_operations = {'+', '-', '*', '/'};
-
-}
-
 template<typename NumberT = long double>
 class cCalculator
 {
@@ -216,89 +210,66 @@ private:
         }
     };
 
-    static const inline _sNode ZERO = {'i'};
-
     _sNode _root;
 
     _sNode _BuildTree(std::string_view expr, FunctionsT const& functions, VariablesT const& constants)
     {
-        if (expr.empty())
-            throw BadExpression(std::string(expr.begin(), expr.end()));
 
-        size_t start(0);
-        int count(0);
-        _sNode root = {'+'};
-        char operation_type = '+';
-
-        for (size_t i = 0; i != expr.size(); i++)
-        {
-            if (expr[i] == '(')
-                ++count;
-            else if (expr[i] == ')')
-                --count;
-            else if (all_operations.count(expr[i]) and !count)
+        auto find_op = [](std::string_view expr, size_t pos, char op1, char op2)
             {
-                bool is_plus_minus = expr[i] == '+' or expr[i] == '-';
-                _sNode subnode = !i and is_plus_minus ? ZERO : _BuildTree(expr.substr(start, i - start), functions, constants);
-                subnode.inversion = operation_type == '-' or operation_type == '/';
-                if (operation_type == '+' or operation_type == '-')
+                int count = 0;
+                for (size_t i = pos; i != expr.size(); ++i)
                 {
-                    if (is_plus_minus)
-                        root.subnodes.push_back(std::move(subnode));
-                    else
-                    {
-                        _sNode mul_node;
-                        mul_node.operation_type = '*';
-                        if (!subnode.inversion)
-                            mul_node.subnodes.push_back(std::move(subnode));
-                        else
-                        {
-                            _sNode add_node = {'+'};
-                            add_node.subnodes.push_back(ZERO);
-                            add_node.subnodes.push_back(std::move(subnode));
-                            mul_node.subnodes.push_back(std::move(add_node));
-                        }
-                        root.subnodes.push_back(std::move(mul_node));
-                    }
+                    char c = expr[i];
+                    if (c =='(')
+                        ++count;
+                    else if (c == ')')
+                        --count;
+                    else if (!count && (c == op1 || c == op2))
+                        return i;
                 }
-                else
-                    root.subnodes.back().subnodes.push_back(std::move(subnode));
+                return expr.size();
+            };
 
-                start = i + 1;
-
-                operation_type = expr[i];
-            }
-        }
-
-        if (root.subnodes.empty())
+        auto processor = [this, &find_op, &functions, &constants](_sNode& root, std::string_view expr, char op1, char op2)
         {
-            //1."cos(5+x)"
-            //2."y" - variable or const
-            //3."(7-z)" 
-            if (expr.back() == ')')
+            root.operation_type = op1;
+            size_t pos = 0;
+            while (true)
             {
-                if (expr.front() == '(')
-                    return _BuildTree(expr.substr(1, expr.size() - 2), functions, constants);
-                else
-                    return _FunctionProcess(expr, functions, constants);
+                size_t next_pos = find_op(expr, pos, op1, op2);
+                if (next_pos == expr.size() && pos == 0)//we unable to find the required operators so skip this step
+                    return;
+                _sNode child = !next_pos ? _sNode{'i'}/*ZERO*/ : _BuildTree(expr.substr(pos, next_pos - pos), functions, constants);
+                if (pos)
+                    child.inversion = expr[pos-1] == op2;
+                root.subnodes.push_back(std::move(child));
+                if (next_pos == expr.size())
+                    return;
+                pos = next_pos + 1;
             }
-            else
-                return _ValueProcess(expr, constants);
-        }
-        else
-        {
-            _sNode subnode(_BuildTree(expr.substr(start), functions, constants));
-            subnode.inversion = operation_type == '-' or operation_type == '/';
+        };
 
-            if (operation_type == '+' or operation_type == '-')
-                root.subnodes.push_back(std::move(subnode));
-            else
-                root.subnodes.back().subnodes.push_back(std::move(subnode));
-        }
+        _sNode root;
 
-        return root;
+        processor(root, expr, '+', '-');
+        if (root.subnodes.size() > 0)
+            return root;
+
+        processor(root, expr, '*', '/');
+
+        if (root.subnodes.size() > 0)
+            return root;
+
+        if (expr.back() != ')')
+            // expression doesn't contain '*', '/', '+', '-' and its last character isn't ')' so it can be constant or variable "5", "x"
+            return _ValueProcess(expr, constants);
+        if (expr.front() == '(')
+            // expression == '(something)' so we will process it as 'something'
+            return _BuildTree(expr.substr(1, expr.size() - 2), functions, constants);
+        //expression == 'something1(something2)' so we process it as function call
+        return _FunctionProcess(expr, functions, constants);
     }
-
 
     _sNode _FunctionProcess(std::string_view expr, FunctionsT const& functions, VariablesT const& constants)
     {
