@@ -55,6 +55,11 @@ int main()
     result += check_expr<long double>("3+5*4+7", VariablesT(), constants, 30);
     result += check_expr<long double>("3-6/5", VariablesT(), constants, 1.8);
     result += check_expr<long double>("2+zz", variables, constants, 80);
+
+    result += check_expr<long double>("3-(3*4)", variables, constants, -9);
+    result += check_expr<long double>("3-3*4", variables, constants, -9);
+    result += check_expr<long double>("(1+1)*(1-5)", VariablesT(), VariablesT(), -8);
+
     result += check_expr<std::complex<long double>>("1+i", ZVariablesT(), ZVariablesT(), std::complex<long double>(1, 1));
     result += check_expr<std::complex<long double>>("(1+i)*(1-5i)", ZVariablesT(), ZVariablesT(), std::complex<long double>(6, -4));
 

@@ -24,8 +24,8 @@ typename cCalculator<NumberT>::FunctionsT const& cCalculator<NumberT>::DefaultFu
 
 template<typename NumberT>
 cCalculator<NumberT>::cCalculator(std::string_view expr, FunctionsT const& functions, VariablesT const& constants)
-    : _root(_BuildTree(expr, functions, constants))
 {
+    _BuildTree(_root, expr, functions, constants);
 }
 
 template<typename NumberT>
@@ -74,95 +74,111 @@ NumberT cCalculator<NumberT>::GetResult() const
     return _Calculate(_root);
 }
 
+size_t find_op(std::string_view expr, size_t pos);
+bool inverse(char op);
+
 template<typename NumberT>
-typename cCalculator<NumberT>::_sNode cCalculator<NumberT>::_BuildTree(std::string_view expr, FunctionsT const& functions, VariablesT const& constants)
+void cCalculator<NumberT>::_BuildTree(_sNode& root, std::string_view expr, FunctionsT const& functions, VariablesT const& constants)
 {
-
-    auto find_op = [](std::string_view expr, size_t pos, char op1, char op2)
-        {
-            int count = 0;
-            for (size_t i = pos; i != expr.size(); ++i)
-            {
-                char c = expr[i];
-                if (c =='(')
-                    ++count;
-                else if (c == ')')
-                    --count;
-                else if (!count && (c == op1 || c == op2))
-                    return i;
-            }
-            return expr.size();
-        };
-
-    auto processor = [this, &find_op, &functions, &constants](_sNode& root, std::string_view expr, char op1, char op2)
+    root.operation_type = '+';
+    _sNode* cur = &root;
+    char prev_operation_type = '+';
+    size_t prev_operation_pos = -1;
+    while (true)
     {
-        root.operation_type = op1;
-        size_t pos = 0;
-        while (true)
+        size_t operation_pos = find_op(expr, prev_operation_pos + 1);
+        if (operation_pos == expr.size())
         {
-            size_t next_pos = find_op(expr, pos, op1, op2);
-            if (next_pos == expr.size() && pos == 0)//we unable to find the required operators so skip this step
-                return;
-            _sNode child = !next_pos ? _sNode{'i'}/*ZERO*/ : _BuildTree(expr.substr(pos, next_pos - pos), functions, constants);
-            if (pos)
-                child.inversion = expr[pos-1] == op2;
-            root.subnodes.push_back(std::move(child));
-            if (next_pos == expr.size())
-                return;
-            pos = next_pos + 1;
+            _sNode& val = cur->Add();
+            val.inversion = inverse(prev_operation_type);
+            _ValueProcess(val, expr.substr(prev_operation_pos + 1, operation_pos - (prev_operation_pos + 1)), constants);
+            return;
         }
-    };
+        char operation_type = expr[operation_pos];
+        if (operation_type == '(')
+        {
+            std::string_view func_prefix = expr.substr(prev_operation_pos + 1, operation_pos - (prev_operation_pos + 1));
 
-    _sNode root;
+            if (prev_operation_type == ')')
+                throw BadExpression(std::string(expr));
 
-    processor(root, expr, '+', '-');
-    if (root.subnodes.size() > 0)
-        return root;
+            _sNode& func = cur->Add();
+            func.operation_type = 'f';
+            if (!func_prefix.empty())
+            {
+                auto found = functions.find(std::string(func_prefix));
+                func.func = found->second;
+            }
+            func.parent = cur;
+            func.inversion = inverse(prev_operation_type);
 
-    processor(root, expr, '*', '/');
+            _sNode& next = func.Add();
+            next.operation_type = '+';
 
-    if (root.subnodes.size() > 0)
-        return root;
+            next.parent = &func;
+            cur = &next;
+        }
+        else if (cur->operation_type == '+' && (operation_type == '*' || operation_type == '/'))
+        {
+            _sNode next;
+            next.inversion = inverse(prev_operation_type);
+            next.operation_type = '*';
+            if (prev_operation_type != ')')
+                _ValueProcess(next.Add(), expr.substr(prev_operation_pos + 1, operation_pos - (prev_operation_pos + 1)), constants);
+            else
+            {
+                next.subnodes.push_back(std::move(cur->subnodes.back()));
+                cur->subnodes.pop_back();
+            }
 
-    if (expr.back() != ')')
-        // expression doesn't contain '*', '/', '+', '-' and its last character isn't ')' so it can be constant or variable "5", "x"
-        return _ValueProcess(expr, constants);
-    if (expr.front() == '(')
-        // expression == '(something)' so we will process it as 'something'
-        return _BuildTree(expr.substr(1, expr.size() - 2), functions, constants);
-    //expression == 'something1(something2)' so we process it as function call
-    return _FunctionProcess(expr, functions, constants);
+            next.parent = cur;
+            cur->subnodes.push_back(std::move(next));
+            cur = &cur->subnodes.back();
+        }
+        else if (operation_type == ')' || (cur->operation_type == '*' && (operation_type == '+' || operation_type == '-')))
+        {
+            if (prev_operation_type != ')')
+            {
+                _sNode& val = cur->Add();
+                val.inversion = inverse(prev_operation_type);
+                _ValueProcess(val, expr.substr(prev_operation_pos + 1, operation_pos - (prev_operation_pos + 1)), constants);
+            }
+            if (operation_type == ')')
+            {
+                while(cur->operation_type != 'f')
+                    cur = cur->parent;
+            }
+
+            cur = cur->parent;
+        }
+        else if (prev_operation_type != ')')
+        {
+            _sNode& val = cur->Add();
+            val.inversion = inverse(prev_operation_type);
+            _ValueProcess(val, expr.substr(prev_operation_pos + 1, operation_pos - (prev_operation_pos + 1)), constants);
+        }
+        if (operation_pos == expr.size() - 1 && expr.back() == ')')
+            return;
+        prev_operation_type = operation_type;
+        prev_operation_pos = operation_pos;
+    }
 }
 
 template<typename NumberT>
-typename cCalculator<NumberT>::_sNode cCalculator<NumberT>::_FunctionProcess(std::string_view expr, FunctionsT const& functions, VariablesT const& constants)
+void cCalculator<NumberT>::_ValueProcess(_sNode& node, std::string_view expr, VariablesT const& constants)
 {
-    auto found = expr.find('(');
-    if (found == std::string_view::npos)
-        throw BadExpression(std::string(expr.begin(), expr.end()));
-
-    std::string_view func = expr.substr(0, found);
-    auto found_func = functions.find(func);
-    if (found_func == functions.end())
-        throw UnknownFunction(std::string(func));
-
-    _sNode subnode = _BuildTree(expr.substr(found + 1, expr.size() - found - 2), functions, constants);
-    _sNode node = {'f'};
-    node.func = found_func->second;
-    node.subnodes.push_back(std::move(subnode));
-    return node;
-}
-
-template<typename NumberT>
-typename cCalculator<NumberT>::_sNode cCalculator<NumberT>::_ValueProcess(std::string_view expr, VariablesT const& constants)
-{
-    _sNode node = {'i'};
+    node.operation_type = 'i';
+    if (expr.empty())
+    {
+        node.value = 0;
+        return;
+    }
 
     auto value = StringToNumber<NumberT>(expr);
     if (value)
     {
         node.value = *value;
-        return node;
+        return;
     }
     // it is a variable or constant
 
@@ -170,7 +186,7 @@ typename cCalculator<NumberT>::_sNode cCalculator<NumberT>::_ValueProcess(std::s
     if (found_const != constants.end())
     {
         node.value = found_const->second;
-        return node;
+        return;
     }
 
     node.operation_type = 'x';
@@ -178,17 +194,13 @@ typename cCalculator<NumberT>::_sNode cCalculator<NumberT>::_ValueProcess(std::s
     auto lb = _my_variables_indexes.lower_bound(expr);
 
     if(lb != _my_variables_indexes.end() && expr == lb->first)
-    {
         node.variable_index = lb->second;
-    }
     else
     {
         _my_variables_values.emplace_back();
-        auto new_value = _my_variables_indexes.insert(lb, std::make_pair(std::string(expr), _my_variables_values.size()-1));
+        auto new_value = _my_variables_indexes.emplace_hint(lb, std::string(expr), _my_variables_values.size()-1);
         node.variable_index = new_value->second;
     }
-
-    return node;
 }
 
 template<typename NumberT>
@@ -259,7 +271,12 @@ NumberT cCalculator<NumberT>::_Calculate(cCalculator::_sNode const& root) const
             return r;
         }
         case 'f':
-            return root.func(_Calculate(root.subnodes[0]));
+        {
+            auto res = _Calculate(root.subnodes[0]);
+            if (!root.func)
+                return res;
+            return root.func(res);
+        }
         case 'x':
             return *(_my_variables_values[root.variable_index]);
         case 'i':

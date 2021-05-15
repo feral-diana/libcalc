@@ -104,10 +104,15 @@ std::optional<std::complex<long double>> StringToNumber<std::complex<long double
     }
 }
 
+long double sqr(long double x)
+{
+    return x*x;
+}
+
 template<>
 cCalculator<long double>::FunctionsT cCalculator<long double>::_default_functions =
 {
-    {"sqr",  [](long double x) { return x*x;} },
+    {"sqr",  sqr},
     {"sin",  sin},
     {"cos",  cos},
     {"exp",  exp},
@@ -122,6 +127,22 @@ void ClearExpression(std::string& expr, std::set<char> const& chars_to_remove)
 {
     auto end_pos = std::remove_if(expr.begin(), expr.end(), [&chars_to_remove](char c) { return chars_to_remove.count(c);});
     expr.resize(end_pos - expr.begin());
+}
+
+size_t find_op(std::string_view expr, size_t pos)
+{
+    for (size_t i = pos; i != expr.size(); ++i)
+    {
+        char c = expr[i];
+        if (c == '+' || c == '-' || c == '*' || c == '/' || c == '(' || c == ')')
+            return i;
+    }
+    return expr.size();
+}
+
+bool inverse(char op)
+{
+    return op == '-' || op == '/';
 }
 
 }

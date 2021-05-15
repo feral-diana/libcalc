@@ -52,6 +52,7 @@ public:
     void SetVariable(std::string const& name, NumberT value);
     void SetVariables(VariablesT const& variables);
     NumberT GetResult() const;
+
 private:
 
     std::map<std::string, int, std::less<>> _my_variables_indexes;
@@ -61,24 +62,31 @@ private:
     struct _sNode
     {
         char operation_type = 0; //0, '+', '*', 'i', 'f', 'x'
-        FunctionT func = 0;    
+        FunctionT func = nullptr;
         NumberT value = 0;
         int variable_index = -1;
         std::vector<_sNode> subnodes;
         bool constant = false;
         bool inversion = false; // true + operation_type('+') = '-'; true + operation_type('*') = '/'
+        _sNode* parent = nullptr;
 
-        _sNode(char op_type = 0)
-            : operation_type(op_type)
+        _sNode() noexcept {};
+        _sNode(_sNode&& node) = default;
+        _sNode(_sNode const& node) = delete;
+        _sNode& operator=(_sNode&& node) = delete;
+        _sNode& operator=(_sNode const& node) = delete;
+
+        _sNode& Add()
         {
+            subnodes.emplace_back();
+            return subnodes.back();
         }
     };
 
     _sNode _root;
 
-    _sNode _BuildTree(std::string_view expr, FunctionsT const& functions, VariablesT const& constants);
-    _sNode _FunctionProcess(std::string_view expr, FunctionsT const& functions, VariablesT const& constants);
-    _sNode _ValueProcess(std::string_view expr, VariablesT const& constants);
+    void _BuildTree(_sNode& root, std::string_view expr, FunctionsT const& functions, VariablesT const& constants);
+    void _ValueProcess(_sNode& root, std::string_view expr, VariablesT const& constants);
     void _Optimize(_sNode& root);
     NumberT _Calculate(_sNode const& root) const;
 };
